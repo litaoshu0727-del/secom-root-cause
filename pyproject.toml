@@ -1,0 +1,16 @@
+[project]
+name = "secom-root-cause"
+version = "0.1.0"
+description = "SECOM yield-loss root cause screening: which sensors are associated with failing runs"
+requires-python = ">=3.10"
+dependencies = ["numpy", "pandas", "scipy>=1.11", "scikit-learn>=1.8", "matplotlib>=3.9"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+packages = ["secom"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
