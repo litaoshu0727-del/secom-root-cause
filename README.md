@@ -1,158 +1,160 @@
-# SECOM 良率损失根因筛查 (secom-root-cause)
+# SECOM Yield Loss Root-Cause Screening (secom-root-cause)
 
 [![tests](https://github.com/litaoshu0727-del/secom-root-cause/actions/workflows/tests.yml/badge.svg)](https://github.com/litaoshu0727-del/secom-root-cause/actions/workflows/tests.yml)
 
-**一句话**:从一条真实产线的 590 个传感器里筛出和 fail 有关的候选,并证明其中大部分"相关"只是时间趋势造成的。
+**English** | [中文](README.zh-CN.md)
 
-| 做了什么 | 结果 |
+**In one sentence:** screen the 590 sensors of a real production line for candidates linked to failing runs, and show that most of the apparent links are only a time trend.
+
+| What | Result |
 |---|---|
-| 逐个传感器做检验,控制假发现率 | 446 个有效传感器里筛出 44 个候选 |
-| 检查 fail 率是否随时间变化 | 三个月里从 8.6% 降到 4.7% |
-| 只用生产时间、不看传感器来预测 fail | ROC-AUC 0.69;用全部传感器的模型也只有 0.71–0.76 |
-| 只在同一周内比较 fail 和 pass | 候选从 44 个缩到 18 个,属于 12 个独立信号 |
-| 用过去的数据预测未来,代替随机交叉验证 | ROC-AUC 从 0.71–0.76 掉到 0.52–0.55 |
+| Test each sensor, controlling the false discovery rate | 44 candidates out of 446 usable sensors |
+| Check whether the fail rate changes over time | Down from 8.6% to 4.7% over three months |
+| Predict fails from production time alone, without any sensor | ROC-AUC 0.69; models using every sensor reach only 0.71–0.76 |
+| Compare fails and passes only within the same week | Candidates shrink from 44 to 18, belonging to 12 independent signals |
+| Predict the future from the past instead of random cross-validation | ROC-AUC falls from 0.71–0.76 to 0.52–0.55 |
 
-结论:这份数据能支持"有一小组传感器值得工程师去查",不能支持"可以用传感器预测 fail"。
+Conclusion: the data supports "a small group of sensors is worth an engineer's attention", not "fails can be predicted from the sensors".
 
-![每周 fail 率的 p 控制图](docs/p_chart.png)
+![p chart of the weekly fail rate](docs/p_chart.png)
 
-SECOM 是一条真实半导体产线的数据:1567 次生产记录、590 个传感器读数、pass/fail 结果和时间戳,其中只有 104 次 fail。本项目回答:
+SECOM is data from a real semiconductor production line: 1,567 production runs, 590 sensor readings, a pass/fail outcome and a timestamp, with only 104 fails. This project asks:
 
-1. **fail 率稳定吗?** 用 p 控制图按周监控,找出异常的时间段。
-2. **哪些传感器和 fail 有关?** 逐个传感器做检验,并控制假发现率。
-3. **这些线索可靠吗?** 检查它们是否只是随时间漂移、是否是同一信号的重复、换一半数据是否还能被选中。
-4. **fail 能预测到什么程度?** 分别用随机交叉验证和"用过去预测未来"两种方式评估。
+1. **Is the fail rate stable?** Monitor it weekly with a p chart and find abnormal periods.
+2. **Which sensors are linked to fails?** Test each sensor and control the false discovery rate.
+3. **Are these leads reliable?** Check whether they are just drifting with time, whether they duplicate the same signal, and whether they are still selected on half of the data.
+4. **How well can fails be predicted?** Evaluate with random cross-validation and with "predict the future from the past".
 
-## 结论
+## Conclusions
 
-**SECOM 里大部分"和 fail 相关"的传感器,其实只是和时间相关。**
+**Most sensors in SECOM that look "related to fails" are really related to time.**
 
-- fail 率在三个月里明显下降:前一半记录是 8.6%,后一半是 4.7%。
-- 只知道一次生产发生在什么时候、完全不看传感器,就能把 fail 预测到 ROC-AUC 0.69;用全部 446 个传感器的模型是 0.71–0.76,只多出一点。
-- 用前 70% 的记录训练、预测后 30%,三个模型的 ROC-AUC 都掉到 0.52–0.55,接近瞎猜。
-- 常规筛查选出 44 个传感器;只在同一周内比较 fail 和 pass 之后,剩下 18 个,其中 14 个集中在编号相邻的一小组传感器上。
+- The fail rate drops clearly over three months: 8.6% in the first half of the runs, 4.7% in the second.
+- Knowing only when a run happened, without looking at any sensor, predicts fails with ROC-AUC 0.69; models with all 446 sensors reach 0.71–0.76, only a little more.
+- Trained on the first 70% of runs and tested on the last 30%, all three models drop to ROC-AUC 0.52–0.55, close to guessing.
+- Standard screening selects 44 sensors; after comparing fails and passes only within the same week, 18 remain, 14 of them in a small group of sensors with related numbers.
 
-所以这份数据能支持的结论是"有一小组传感器值得工程师去查",而不是"可以用传感器预测 fail"。
+So what this data supports is "a small group of sensors is worth an engineer's attention", not "fails can be predicted from the sensors".
 
-## 为什么不直接训练一个分类器
+## Why not just train a classifier
 
-590 个传感器、104 个 fail,这是典型的"特征多、样本少"。直接建模有三个陷阱,本项目逐一处理:
+590 sensors and 104 fails is the classic "many features, few samples" setting. Modelling directly has these traps, each handled here:
 
-| 陷阱 | 处理方式 |
+| Trap | What is done |
 |---|---|
-| 检验几百个传感器,按 p < 0.05 会有二十多个纯属偶然 | Benjamini-Hochberg 校正,按 q 值筛选 |
-| 先在全部数据上挑特征再做交叉验证,分数虚高 | 填补缺失、标准化、特征选择全部放进 pipeline,每一折重新拟合 |
-| 传感器随时间漂移,fail 率也随时间变化,两者会假相关 | 每个传感器减去当周中位数后再筛查一次,只比较同一周内的 fail 和 pass |
-| 随机交叉验证把同一时期的记录分到训练和测试两边,高估实际表现 | 另外按时间顺序划分评估,并和"只用时间"的模型对比 |
-| 单次 L1 回归选出的特征带偶然性 | 稳定性选择:在 100 个随机半数样本上重复,统计入选频率 |
-| 缺失值填补后,"传感器掉线"这个信号消失 | 在原始数据上单独检验缺失与 fail 的关系 |
-| 高度相关的传感器在名单里重复出现 | 按 Spearman 相关 ≥ 0.95 分组,每组只保留一个代表 |
+| Testing hundreds of sensors at p < 0.05 gives twenty-odd by pure chance | Benjamini-Hochberg correction, selection by q-value |
+| Selecting features on all the data before cross-validating inflates the score | Imputation, scaling and feature selection all sit inside the pipeline and are refitted in every fold |
+| Sensors drift over time and so does the fail rate, so the two correlate spuriously | Screen again after subtracting each sensor's weekly median, comparing fails and passes only within the same week |
+| Random cross-validation puts runs from the same period in both training and test, overstating real performance | Also evaluate on a split in time order, and compare with a model that uses time only |
+| Features picked by a single L1 regression are partly chance | Stability selection: repeat on 100 random halves of the data and count how often each is picked |
+| After imputation the "sensor dropped out" signal is gone | Test missingness against fails separately, on the raw data |
+| Highly correlated sensors repeat in the list | Group by Spearman correlation ≥ 0.95 and keep one representative per group |
 
-传感器是匿名的,所以输出是"值得工程师去查的候选传感器名单",不是确定的物理根因。
+The sensors are anonymous, so the output is "a shortlist of sensors worth an engineer's look", not a definite physical root cause.
 
-## 快速开始
+## Quick start
 
 ```bash
 pip install -e ".[dev]"
-pytest                                             # 12 项测试
+pytest                                             # 12 tests
 python -m secom.synthetic --out data/synthetic
 python -m secom.report --data data/synthetic --out reports/synthetic
 ```
 
-## 获取真实数据
+## Getting the real data
 
-1. 从 UCI 的 SECOM 页面(https://archive.ics.uci.edu/dataset/179/secom)下载 `secom.zip`。如果打不开,互联网档案馆有官方文件的存档:`https://web.archive.org/web/2026/https://archive.ics.uci.edu/static/public/179/secom.zip`。
-2. 解压出 `secom.data` 和 `secom_labels.data`,放到 `data/secom/`。
-3. 运行 `python -m secom.report --data data/secom --out reports/secom`。
+1. Download `secom.zip` from the UCI SECOM page (https://archive.ics.uci.edu/dataset/179/secom). If it does not open, the Internet Archive has a copy of the official file: `https://web.archive.org/web/2026/https://archive.ics.uci.edu/static/public/179/secom.zip`.
+2. Unpack `secom.data` and `secom_labels.data` into `data/secom/`.
+3. Run `python -m secom.report --data data/secom --out reports/secom`.
 
-数据集不包含在仓库里。SECOM 以 CC BY 4.0 许可发布,出处:M. McCann, A. Johnston, *SECOM* [Dataset], UCI Machine Learning Repository, 2008. [doi:10.24432/C54305](https://doi.org/10.24432/C54305)
+The dataset is not included in the repository. SECOM is published under CC BY 4.0; source: M. McCann, A. Johnston, *SECOM* [Dataset], UCI Machine Learning Repository, 2008. [doi:10.24432/C54305](https://doi.org/10.24432/C54305)
 
-## 真实数据结果
+## Results on the real data
 
-数据:1567 次记录、104 次 fail(6.6%),时间从 2008-07-19 到 2008-10-17。590 个传感器里 116 个是常数、28 个缺失超过一半,剩 446 个用于分析。
+Data: 1,567 runs, 104 fails (6.6%), from 2008-07-19 to 2008-10-17. Of the 590 sensors, 116 are constant and 28 are missing more than half their values, leaving 446 for analysis.
 
-**fail 率随时间变化**
+**The fail rate changes over time**
 
-- 前六周每周 fail 率在 10%–23% 之间,9 月降到 1%–4%。
-- 按 3σ 控制限,14 周里只有 1 周失控(7 月 28 日那周,48 次记录里 10 次 fail);但前后两半的差别很明确(8.6% 对 4.7%,Fisher 检验 p = 0.002)。
+- In the first six weeks the weekly fail rate is 10%–23%; in September it falls to 1%–4%.
+- With 3σ control limits only 1 of 14 weeks is out of control (the week of 28 July, 10 fails in 48 runs); but the difference between the two halves is clear (8.6% against 4.7%, Fisher test p = 0.002).
 
-**传感器筛查**
+**Sensor screening**
 
-| 筛查方式 | 选出的传感器 | 独立分组 |
+| Screening | Sensors selected | Independent groups |
 |---|---|---|
-| 原始 p < 0.05,不校正 | 86(纯偶然预期约 22) | – |
-| 原始读数,q < 0.1 | 44 | 33 |
-| 减去当周中位数后,q < 0.1 | 18 | 12 |
+| Raw p < 0.05, uncorrected | 86 (about 22 expected by chance) | – |
+| Raw readings, q < 0.1 | 44 | 33 |
+| After subtracting the weekly median, q < 0.1 | 18 | 12 |
 
-- 44 个常规筛查的结果里,20 个随时间明显漂移,只有 9 个在同一周内比较后仍然显著。
-- 留下的 18 个里,14 个属于编号 197、200、203、205、207 以及它们加 136、加 272 的传感器(如 205 / 341 / 477)。传感器是匿名的,这种编号规律可能意味着它们是同一组测量的不同统计量,这一点是推测。
-- 效应都不大:同一周内,fail 的读数高于 pass 的概率在 0.59–0.61 之间(0.5 表示没有差别)。
-- s059 在原始读数上最显著(概率 0.69,稳定性选择入选率 97%),但它也随时间漂移;扣除周中位数后降到 0.60,仍然显著。
-- 有 8 个传感器的缺失和 fail 相关(fail 时反而更少缺失),但它们的缺失率本身随时间上升(如 s072 从前一半的 38% 升到后一半的 64%),所以不作为线索。
+- Of the 44 from standard screening, 20 drift clearly over time, and only 9 remain significant when compared within the same week.
+- 14 of the remaining 18 belong to sensors 197, 200, 203, 205 and 207 and those numbers plus 136 and plus 272 (for example 205 / 341 / 477). The sensors are anonymous; this numbering pattern may mean they are different statistics of the same measurement, but that is a guess.
+- The effects are all small: within the same week, the chance that a fail reads higher than a pass is 0.59–0.61 (0.5 means no difference).
+- s059 is the most significant on raw readings (probability 0.69, picked in 97% of stability-selection rounds), but it also drifts over time; after subtracting the weekly median it falls to 0.60 and is still significant.
+- For 8 sensors, missing values are linked to fails (fails are less often missing), but their missing rate itself rises over time (s072 goes from 38% in the first half to 64% in the second), so they are not treated as leads.
 
-![筛查结果:橙色是只在原始读数上显著的传感器,红色是同一周内仍显著的](docs/volcano.png)
+![Screening results: orange sensors are significant only on raw readings, red ones stay significant within the same week](docs/volcano.png)
 
-![同一周内仍显著的领先传感器,pass 与 fail 的分布](docs/top_sensors.png)
+![Distributions for passes and fails of the leading sensors that stay significant within the same week](docs/top_sensors.png)
 
-**fail 能预测到什么程度**
+**How well can fails be predicted?**
 
-| 模型 | 随机 5 折 × 3 次 ROC-AUC | 按时间划分 ROC-AUC |
+| Model | Random 5-fold × 3 ROC-AUC | Time-ordered split ROC-AUC |
 |---|---|---|
-| L1 逻辑回归 | 0.725 | 0.552 |
-| 前 40 个特征 + 逻辑回归 | 0.710 | 0.551 |
-| 随机森林 | 0.761 | 0.523 |
-| 只用记录顺序,不看传感器 | 0.687 | – |
+| L1 logistic regression | 0.725 | 0.552 |
+| Top 40 features + logistic regression | 0.710 | 0.551 |
+| Random forest | 0.761 | 0.523 |
+| Run order only, no sensors | 0.687 | – |
 
-- 随机交叉验证的标准差约 0.04–0.05。
-- 按时间划分是用最早的 1096 次记录训练、最后 471 次测试,测试集里只有 26 次 fail,所以这一列的数字本身波动也大。
-- PR-AUC 在随机划分下是 0.17–0.22(瞎猜是 0.066),按时间划分是 0.07–0.09(瞎猜是 0.055)。
+- The standard deviation over random cross-validation is about 0.04–0.05.
+- The time-ordered split trains on the earliest 1,096 runs and tests on the last 471, which contain only 26 fails, so the numbers in that column are noisy too.
+- PR-AUC is 0.17–0.22 with random splits (guessing gives 0.066) and 0.07–0.09 with the time-ordered split (guessing gives 0.055).
 
-**口径说明**
+**Definitions**
 
-- "减去当周中位数"是保守的做法:如果一个真实原因只在周与周之间变化,也会被一起去掉。
-- q < 0.1 意味着名单里预期有约一成是假发现,18 个里大概 2 个。
-- 稳定性选择用的是原始读数,所以它偏向随时间漂移的传感器;留下的 18 个里只有 s059 和 s021 入选率超过一半。
+- Subtracting the weekly median is conservative: a real cause that only varies from week to week would be removed as well.
+- q < 0.1 means about a tenth of the list is expected to be false discoveries, roughly 2 of the 18.
+- Stability selection uses raw readings, so it favours sensors that drift with time; of the 18 remaining, only s059 and s021 are picked more than half the time.
 
-## 输出
+## Outputs
 
-| 文件 | 内容 |
+| File | Contents |
 |---|---|
-| `shortlist.csv` | 通过筛查的传感器,附稳定性、漂移和分组信息;`survives` 列标记同一周内仍显著的 |
-| `screening_values.csv` | 每个传感器在原始读数上的检验结果(AUC、p 值、q 值) |
-| `screening_within_week.csv` | 减去当周中位数后的检验结果 |
-| `screening_missingness.csv` | 缺失与 fail 的关系 |
-| `weekly_fail_rate.csv`、`p_chart.png` | 每周 fail 率与控制限 |
-| `model_cv.csv`、`model_time_holdout.csv` | 三个模型在两种划分下的 ROC-AUC 与 PR-AUC |
-| `volcano.png`、`top_sensors.png`、`stability.png` | 筛查结果、领先传感器的分布、稳定性选择 |
+| `shortlist.csv` | Sensors that pass screening, with stability, drift and group information; the `survives` column marks those still significant within the same week |
+| `screening_values.csv` | Test results for each sensor on raw readings (AUC, p-value, q-value) |
+| `screening_within_week.csv` | Test results after subtracting the weekly median |
+| `screening_missingness.csv` | Missingness against fails |
+| `weekly_fail_rate.csv`, `p_chart.png` | Weekly fail rate and control limits |
+| `model_cv.csv`, `model_time_holdout.csv` | ROC-AUC and PR-AUC of the three models under both splits |
+| `volcano.png`, `top_sensors.png`, `stability.png` | Screening results, distributions of the leading sensors, stability selection |
 
-`shortlist.csv` 里的 `auc` 是"一次 fail 的读数高于一次 pass 的读数"的概率,0.5 表示没有差别。
+The `auc` in `shortlist.csv` is the probability that a fail reads higher than a pass; 0.5 means no difference.
 
-## 目录
+## Layout
 
-| 文件 | 作用 |
+| File | Purpose |
 |---|---|
-| `secom/data.py` | 读取文件、按时间排序、去掉常数列和缺失过多的列、相关性分组 |
-| `secom/screening.py` | Mann-Whitney 检验、缺失性 Fisher 检验、FDR 校正 |
-| `secom/drift.py` | p 控制图、传感器漂移 |
-| `secom/model.py` | 三个模型、两种评估方式、稳定性选择 |
-| `secom/report.py` | 一键运行并汇总成候选名单 |
-| `secom/synthetic.py` | 生成带已知原因的合成数据 |
+| `secom/data.py` | Read the files, sort by time, drop constant and mostly missing columns, group by correlation |
+| `secom/screening.py` | Mann-Whitney tests, Fisher tests on missingness, FDR correction |
+| `secom/drift.py` | p chart, sensor drift |
+| `secom/model.py` | Three models, two evaluation schemes, stability selection |
+| `secom/report.py` | Run everything and assemble the shortlist |
+| `secom/synthetic.py` | Synthetic data with known causes |
 
-## 用合成数据验证方法
+## Checking the method on synthetic data
 
-`secom/synthetic.py` 生成和 SECOM 文件格式完全一致的数据,并预先埋好答案:8 个真实原因、6 个它们的近似副本、20 个只漂移不相关的传感器、2 个"fail 时容易掉线"的传感器,以及一段两周的 fail 率升高。测试用它检查:
+`secom/synthetic.py` writes data in exactly the SECOM file format, with the answers planted in advance: 8 real causes, 6 near-copies of them, 20 sensors that only drift and are unrelated to fails, 2 sensors that tend to drop out on fails, and a two-week rise in the fail rate. The tests use it to check that:
 
-- 埋入的原因能被筛查找回,假发现的比例受控。
-- 掉线传感器能被缺失性检验找到。
-- 一个只随时间变化、和 fail 没有周内关系的传感器,在原始读数上显著,扣除周中位数后不再显著。
+- The planted causes are recovered by screening, with the share of false discoveries under control.
+- The drop-out sensors are found by the missingness test.
+- A sensor that only changes with time, with no within-week link to fails, is significant on raw readings and no longer significant after subtracting the weekly median.
 
-这些只说明方法和代码是对的,不是 SECOM 的结论。
+This only shows that the method and code are right; it is not a finding about SECOM.
 
-## 相关项目
+## Related projects
 
-- [wafer-map-yield](https://github.com/litaoshu0727-del/wafer-map-yield):晶圆图良率分析和缺陷图案分类
-- [yield-dashboard](https://github.com/litaoshu0727-del/yield-dashboard):良率监控看板(SPC、良率模型)
+- [wafer-map-yield](https://github.com/litaoshu0727-del/wafer-map-yield): wafer map yield analysis and defect pattern classification
+- [yield-dashboard](https://github.com/litaoshu0727-del/yield-dashboard): yield monitoring dashboard (SPC, yield models)
 
-## 许可
+## License
 
-代码使用 MIT 许可,见 [LICENSE](LICENSE)。SECOM 数据集按 CC BY 4.0 使用,需注明上面的出处。
+The code is under the MIT license, see [LICENSE](LICENSE). The SECOM dataset is used under CC BY 4.0 and must be credited as above.
