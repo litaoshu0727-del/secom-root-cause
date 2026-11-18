@@ -1,5 +1,7 @@
 # SECOM 良率损失根因筛查 (secom-root-cause)
 
+[![tests](https://github.com/litaoshu0727-del/secom-root-cause/actions/workflows/tests.yml/badge.svg)](https://github.com/litaoshu0727-del/secom-root-cause/actions/workflows/tests.yml)
+
 **一句话**:从一条真实产线的 590 个传感器里筛出和 fail 有关的候选,并证明其中大部分"相关"只是时间趋势造成的。
 
 | 做了什么 | 结果 |
@@ -62,6 +64,8 @@ python -m secom.report --data data/synthetic --out reports/synthetic
 1. 从 UCI 的 SECOM 页面(https://archive.ics.uci.edu/dataset/179/secom)下载 `secom.zip`。如果打不开,互联网档案馆有官方文件的存档:`https://web.archive.org/web/2026/https://archive.ics.uci.edu/static/public/179/secom.zip`。
 2. 解压出 `secom.data` 和 `secom_labels.data`,放到 `data/secom/`。
 3. 运行 `python -m secom.report --data data/secom --out reports/secom`。
+
+数据集不包含在仓库里。SECOM 以 CC BY 4.0 许可发布,出处:M. McCann, A. Johnston, *SECOM* [Dataset], UCI Machine Learning Repository, 2008. [doi:10.24432/C54305](https://doi.org/10.24432/C54305)
 
 ## 真实数据结果
 
@@ -144,10 +148,11 @@ python -m secom.report --data data/synthetic --out reports/synthetic
 
 这些只说明方法和代码是对的,不是 SECOM 的结论。
 
-## 简历写法模板
+## 相关项目
 
-数字来自上面的真实数据结果:
+- [wafer-map-yield](https://github.com/litaoshu0727-del/wafer-map-yield):晶圆图良率分析和缺陷图案分类
+- [yield-dashboard](https://github.com/litaoshu0727-del/yield-dashboard):良率监控看板(SPC、良率模型)
 
-- 针对 SECOM 产线数据(1567 次记录、590 个传感器、fail 率 6.6%)搭建良率损失根因筛查流程,用 Mann-Whitney 检验和 FDR 校正从 446 个有效传感器中筛出 44 个候选
-- 发现 fail 率随时间从 8.6% 降到 4.7%,仅凭生产时间即可达到 ROC-AUC 0.69;通过周内对比剔除了 35 个无法与时间趋势区分的候选,把名单缩小到 18 个传感器、12 个独立信号
-- 将缺失值填补和特征选择放入交叉验证内部以避免信息泄漏,并用按时间划分的测试集验证,指出随机交叉验证的 ROC-AUC 0.76 在实际使用场景下只有 0.52–0.55
+## 许可
+
+代码使用 MIT 许可,见 [LICENSE](LICENSE)。SECOM 数据集按 CC BY 4.0 使用,需注明上面的出处。

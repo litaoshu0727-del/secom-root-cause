@@ -1,12 +1,17 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "secom-root-cause"
 version = "0.1.0"
 description = "SECOM yield-loss root cause screening: which sensors are associated with failing runs"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
+license = "MIT"
 dependencies = ["numpy", "pandas", "scipy>=1.11", "scikit-learn>=1.8", "matplotlib>=3.9"]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "ruff"]
 
 [tool.setuptools]
 packages = ["secom"]
@@ -14,3 +19,6 @@ packages = ["secom"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.ruff.lint]
+select = ["E9", "F"]  # syntax errors and pyflakes (unused imports, undefined names)
